@@ -69,16 +69,24 @@ class URLRedactingSpanProcessor(SpanProcessor):
         if not hasattr(span, "attributes") or not span.attributes:
             return
         
-        for key in ["http.url", "url.full"]:
+        # Redact query parameters from full URLs and targets
+        for key in ["http.url", "url.full", "http.target"]:
             if key in span.attributes:
-                url = span.attributes[key]
-                if isinstance(url, str) and "?" in url:
+                val = span.attributes[key]
+                if isinstance(val, str) and "?" in val:
                     try:
-                        # attributes is usually read-only, but _attributes is the underlying dict
                         if hasattr(span, "_attributes"):
-                            span._attributes[key] = url.split("?")[0]
+                            span._attributes[key] = val.split("?")[0]
                     except Exception:
                         pass
+        
+        # Clear url.query entirely
+        if "url.query" in span.attributes:
+            try:
+                if hasattr(span, "_attributes"):
+                    span._attributes["url.query"] = ""
+            except Exception:
+                pass
 
 
 def init_otel_tracer(

@@ -27,6 +27,18 @@ def test_url_redaction():
     processor.on_end(span)
     assert span.attributes["url.full"] == "https://example.com/image.jpg"
     
+    # Test http.target
+    attributes = {"http.target": "/v1/completions?token=secret"}
+    span = MockSpan(attributes)
+    processor.on_end(span)
+    assert span.attributes["http.target"] == "/v1/completions"
+    
+    # Test url.query
+    attributes = {"url.query": "token=secret"}
+    span = MockSpan(attributes)
+    processor.on_end(span)
+    assert span.attributes["url.query"] == ""
+    
     # Test no query params
     attributes = {"http.url": "https://example.com/image.jpg"}
     span = MockSpan(attributes)
