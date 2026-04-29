@@ -29,7 +29,7 @@ try:
         OTEL_EXPORTER_OTLP_TRACES_PROTOCOL,
     )
     from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace import TracerProvider, SpanProcessor, ReadableSpan
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.trace import (
         SpanKind,  # noqa: F401
@@ -51,10 +51,34 @@ except ImportError:
     inject = None  # type: ignore
     Resource = None  # type: ignore
     SpanKind = Any  # type: ignore
+    SpanProcessor = Any  # type: ignore
+    ReadableSpan = Any  # type: ignore
 
 
 def is_otel_available() -> bool:
     return _IS_OTEL_AVAILABLE
+
+
+class URLRedactingSpanProcessor(SpanProcessor):
+    """Span processor that redacts query parameters from URLs in span attributes."""
+
+    def on_start(self, span: Any, parent_context: Any = None) -> None:
+        pass
+
+    def on_end(self, span: Any) -> None:
+        if not hasattr(span, "attributes") or not span.attributes:
+            return
+        
+        for key in ["http.url", "url.full"]:
+            if key in span.attributes:
+                url = span.attributes[key]
+                if isinstance(url, str) and "?" in url:
+                    try:
+                        # attributes is usually read-only, but _attributes is the underlying dict
+                        if hasattr(span, "_attributes"):
+                            span._attributes[key] = url.split("?")[0]
+                    except Exception:
+                        pass
 
 
 def init_otel_tracer(
@@ -82,6 +106,7 @@ def init_otel_tracer(
 
     trace_provider = TracerProvider(resource=resource)
     span_exporter = get_span_exporter(otlp_traces_endpoint)
+    trace_provider.add_span_processor(URLRedactingSpanProcessor())
     trace_provider.add_span_processor(BatchSpanProcessor(span_exporter))
     set_tracer_provider(trace_provider)
 
