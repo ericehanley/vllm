@@ -67,7 +67,7 @@ class SchedulerConfig:
     In real usage, this should be set in `EngineArgs.create_engine_config`.
     """
 
-    max_num_partial_prefills: int = Field(default=1, ge=1)
+    max_num_partial_prefills: int = Field(default=10000, ge=1)
     """For chunked prefill, the maximum number of sequences that can be
     partially prefilled concurrently."""
 
