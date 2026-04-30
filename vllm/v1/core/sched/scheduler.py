@@ -114,6 +114,9 @@ class Scheduler(SchedulerInterface):
             self.kv_events_config is not None
             and self.kv_events_config.enable_kv_cache_events
         )
+        # Concurrent partial prefills state.
+        self.num_partial_prefills = 0
+        self.num_long_partial_prefills = 0
 
         # Create KVConnector for the Scheduler. Note that each Worker
         # will have a corresponding KVConnector with Role=WORKER.
@@ -692,6 +695,45 @@ class Scheduler(SchedulerInterface):
                     num_new_tokens = min(num_new_tokens, token_budget)
                     assert num_new_tokens > 0
 
+                    # Enforce concurrent partial prefill limits.
+                    is_partial_prefill = num_new_tokens < (
+                        request.num_tokens - num_computed_tokens
+                    )
+                    is_long_prefill = (
+                        request.num_tokens
+                        > self.scheduler_config.long_prefill_token_threshold
+                    )
+
+                    if is_partial_prefill:
+                        num_current_partial_prefills = sum(
+                            1 for r in self.running if r.is_prefill_chunk
+                        )
+                        if (
+                            num_current_partial_prefills
+                            >= self.scheduler_config.max_num_partial_prefills
+                        ):
+                            request_queue.pop_request()
+                            step_skipped_waiting.prepend_request(request)
+                            continue
+
+                        if is_long_prefill:
+                            num_current_long_partial_prefills = sum(
+                                1
+                                for r in self.running
+                                if r.is_prefill_chunk
+                                and r.num_tokens
+                                > self.scheduler_config.
+                                long_prefill_token_threshold
+                            )
+                            if (
+                                num_current_long_partial_prefills
+                                >= self.scheduler_config.
+                                max_long_partial_prefills
+                            ):
+                                request_queue.pop_request()
+                                step_skipped_waiting.prepend_request(request)
+                                continue
+
                     # Schedule encoder inputs.
                     if request.has_encoder_inputs:
                         (
@@ -838,6 +880,10 @@ class Scheduler(SchedulerInterface):
                 token_budget -= num_new_tokens
                 request.status = RequestStatus.RUNNING
                 request.num_computed_tokens = num_computed_tokens
+                # Set is_prefill_chunk tentatively for on-the-fly counting.
+                request.is_prefill_chunk = (
+                    num_computed_tokens + num_new_tokens
+                ) < (request.num_tokens + request.num_output_placeholders)
                 # Encoder-related.
                 if encoder_inputs_to_schedule:
                     scheduled_encoder_inputs[request_id] = encoder_inputs_to_schedule
