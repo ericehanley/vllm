@@ -299,7 +299,7 @@ class SchedulerConfig:
                     f"than the max_model_len ({max_model_len})."
                 )
 
-        if self.max_long_partial_prefills > self.max_num_partial_prefills:
+        if self.max_num_partial_prefills is not None and self.max_long_partial_prefills > self.max_num_partial_prefills:
             raise ValueError(
                 f"{self.max_long_partial_prefills=} must be less than or equal to "
                 f"{self.max_num_partial_prefills=}."
