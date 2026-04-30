@@ -709,7 +709,8 @@ class Scheduler(SchedulerInterface):
                             1 for r in self.running if r.is_prefill_chunk
                         )
                         if (
-                            num_current_partial_prefills
+                            self.scheduler_config.max_num_partial_prefills is not None
+                            and num_current_partial_prefills
                             >= self.scheduler_config.max_num_partial_prefills
                         ):
                             request_queue.pop_request()

@@ -67,7 +67,7 @@ class SchedulerConfig:
     In real usage, this should be set in `EngineArgs.create_engine_config`.
     """
 
-    max_num_partial_prefills: int = Field(default=10000, ge=1)
+    max_num_partial_prefills: int | None = Field(default=None)
     """For chunked prefill, the maximum number of sequences that can be
     partially prefilled concurrently."""
 
@@ -241,7 +241,7 @@ class SchedulerConfig:
                 self.max_num_batched_tokens,
             )
 
-        if self.max_num_partial_prefills > 1:
+        if self.max_num_partial_prefills is not None and self.max_num_partial_prefills > 1:
             if self.long_prefill_token_threshold == 0:
                 self.long_prefill_token_threshold = int(max_model_len * 0.04)
 
@@ -285,7 +285,7 @@ class SchedulerConfig:
                 self.max_num_seqs * max_model_len,
             )
 
-        if self.max_num_partial_prefills > 1:
+        if self.max_num_partial_prefills is not None and self.max_num_partial_prefills > 1:
             if not self.enable_chunked_prefill:
                 raise ValueError(
                     "Chunked prefill must be enabled to set "
